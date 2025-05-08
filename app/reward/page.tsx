@@ -51,9 +51,9 @@ export default function RewardsPage() {
           <Link href="/reward" className="text-sm font-medium hover:underline underline-offset-4">
             Rewards
           </Link>
-          <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4">
-            Login
-          </Link>
+          <Link href="/reward">
+                <Button className="bg-blue-600 hover:bg-green-700 text-white">Connect Wallet</Button>
+              </Link>
         </nav>
         <div className="ml-auto md:hidden">
           <MobileMenu />

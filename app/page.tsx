@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Scan, Coins, ArrowRight } from "lucide-react"
 import { Layout } from "@/components/layout"
 
+
 /*function to define the home contents*/
 export default function Home() {
   return (

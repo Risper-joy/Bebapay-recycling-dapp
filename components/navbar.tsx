@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { RecycleIcon } from "lucide-react"
 import { MobileMenu } from "./mobile-menu"
+import { Button } from "@/components/ui/button"
 
 export function Navbar() {
   return (
@@ -16,10 +17,14 @@ export function Navbar() {
         <Link href="/reward" className="text-sm font-medium text-black hover:text-green-500 hover:underline underline-offset-4">
           Rewards
         </Link>
-        <Link href="/login" className="text-sm font-medium text-black hover:text-green-500 hover:underline underline-offset-4">
-          Login
-        </Link>
+        <Link href="/admin" className="text-sm font-medium text-black hover:text-green-500 hover:underline underline-offset-4">
+          Admin
+          </Link>
+        <Link href="/reward">
+                <Button className="bg-blue-600 hover:bg-green-700 text-white">Connect Wallet</Button>
+              </Link>
       </nav>
+      
       <div className="ml-auto md:hidden">
         <MobileMenu />
       </div>

@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { useMobile } from "@/hooks/use-mobile"
 import { Layout } from "@/components/layout"
-import { BrowserMultiFormatReader } from "@zxing/browser"
+import { supabase } from "@/lib/supabase"
 
 export default function ScanPage() {
   const [scanning, setScanning] = useState(false)
@@ -17,24 +18,38 @@ export default function ScanPage() {
   const [error, setError] = useState("")
   const [barcodeResult, setBarcodeResult] = useState<string | null>(null)
   const [barcodeFormat, setBarcodeFormat] = useState<string | null>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null)
   const isMobile = useMobile()
-  const streamRef = useRef<MediaStream | null>(null)
+  const scannerRef = useRef<Html5Qrcode | null>(null)
+  const scannerContainerId = "html5-qrcode"
 
-  // Initialize the barcode reader
-  useEffect(() => {
-    codeReaderRef.current = new BrowserMultiFormatReader()
+  const stopScanning = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop()
+      } catch (e) {
+        console.error("Error stopping scanner:", e)
+      }
 
-    return () => {
-      if (streamRef.current) {
-        const tracks = streamRef.current.getTracks()
-        tracks.forEach(track => track.stop()) // Stop all video tracks
+      try {
+        await scannerRef.current.clear()
+      } catch (e) {
+        console.error("Error clearing scanner:", e)
       }
     }
-  }, [])
+    setScanning(false)
+  }
 
-  // Start scanning for barcodes
+  const saveToSupabase = async (code: string, format: string, reward: number) => {
+    const { data, error } = await supabase.from("barcodes").insert([
+      {
+        code,
+        format,
+        reward,
+        status: 'pending',
+      },
+    ])
+    if (error) console.error("Supabase insert error:", error)
+  }
   const startScanning = async () => {
     setScanning(true)
     setScanned(false)
@@ -43,73 +58,83 @@ export default function ScanPage() {
     setBarcodeFormat(null)
 
     try {
-      if (!videoRef.current || !codeReaderRef.current) return
+      const formatsToSupport = [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.UPC_A
+      ]
 
-      // Get list of available video input devices
-      const videoInputDevices = await navigator.mediaDevices.enumerateDevices()
-
-      // Filter for video input devices
-      const videoDevices = videoInputDevices.filter(device => device.kind === "videoinput")
-
-      // For mobile, try to use the back camera
-      const selectedDeviceId = isMobile
-        ? videoDevices.find((device) => device.label.toLowerCase().includes("back"))?.deviceId ||
-          videoDevices[0]?.deviceId
-        : videoDevices[0]?.deviceId
-
-      if (!selectedDeviceId) {
-        throw new Error("No camera found")
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        formatsToSupport,
+        aspectRatio: 1.777,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
       }
 
-      // Start continuous scanning
-      codeReaderRef.current.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, error) => {
-        if (result) {
-          // Stop scanning when a barcode is found
+      scannerRef.current = new Html5Qrcode(scannerContainerId)
+      const devices = await Html5Qrcode.getCameras()
+      if (!devices.length) throw new Error("No camera found")
+
+      const backCamera = isMobile
+        ? devices.find(d => d.label.toLowerCase().includes("back"))?.id || devices[0].id
+        : devices[0].id
+
+      await scannerRef.current.start(
+        { deviceId: { exact: backCamera } },
+        config,
+        (decodedText, decodedResult) => {
           setScanned(true)
           setScanning(false)
-          setBarcodeResult(result.getText())
-          setBarcodeFormat(result.getBarcodeFormat().toString())
+          setBarcodeResult(decodedText)
 
-          // Generate a random reward between 5 and 20
+          // Safely access format name
+          setBarcodeFormat(decodedResult?.result?.format?.formatName || "Unknown Format")
+
           const randomReward = Math.floor(Math.random() * 16) + 5
           setReward(randomReward)
 
-          // Stop the video stream
+          const format = decodedResult?.result?.format?.formatName || "Unknown Format"
+
+                   // ✅ Call it here
+             saveToSupabase(decodedText, format, randomReward)
+
           stopScanning()
+        },
+        (errorMessage) => {
+          console.warn("QR code scan error:", errorMessage)
         }
-
-        if (error && !(error instanceof TypeError)) {
-          // Ignore TypeError as it's often thrown when no barcode is detected
-          console.error("Scan error:", error)
-        }
-      })
-
-      // Start the video stream
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: selectedDeviceId } }
-      })
-      videoRef.current.srcObject = stream
-      streamRef.current = stream
-
-    } catch (err) {
-      console.error("Camera access error:", err)
-      setError("Could not access camera. Please check permissions.")
+      )
+    } catch (err: any) {
+      console.error("Start scanning error:", err)
+      setError(err.message || "Failed to start scanner")
       setScanning(false)
     }
   }
 
-  // Stop scanning
-  const stopScanning = () => {
-    if (streamRef.current) {
-      const tracks = streamRef.current.getTracks()
-      tracks.forEach(track => track.stop()) // Stop all video tracks
-    }
+  useEffect(() => {
+    return () => {
+      const cleanup = async () => {
+        if (scannerRef.current) {
+          try {
+            await scannerRef.current.stop()
+          } catch (err) {
+            console.error("Error stopping scanner:", err)
+          }
 
-    setScanning(false)
-    setBarcodeResult(null)
-    setBarcodeFormat(null)
-    setReward(0)
-  }
+          try {
+            await scannerRef.current.clear()
+          } catch (err) {
+            console.error("Error clearing scanner:", err)
+          }
+        }
+      }
+
+      cleanup().catch(err => console.error("Cleanup error:", err))
+    }
+  }, [])
 
   return (
     <Layout>
@@ -118,9 +143,8 @@ export default function ScanPage() {
           <CardHeader>
             <CardTitle>Scan Recyclable Item</CardTitle>
             <CardDescription className="text-black">
-  Point your camera at the barcode on the recyclable item to earn Cypherium rewards
-</CardDescription>
-
+              Point your camera at the barcode on the recyclable item to earn Cypherium rewards
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
@@ -134,16 +158,16 @@ export default function ScanPage() {
             {scanned && (
               <Alert className="bg-green-50 border-green-200">
                 <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertTitle>Success!</AlertTitle>
-                <AlertDescription>
-                  <p>You earned {reward} Cypherium for recycling this item!</p>
+                <AlertTitle  className="text-black">Success!</AlertTitle>
+                <AlertDescription className="text-black">
+                
                   {barcodeResult && (
                     <div className="mt-2 text-sm">
                       <p>
-                        <strong>Barcode:</strong> {barcodeResult}
+                        <strong className="text-black">Barcode:</strong> {barcodeResult}
                       </p>
                       <p>
-                        <strong>Format:</strong> {barcodeFormat}
+                        <strong className="text-black">Format:</strong> {barcodeFormat}
                       </p>
                     </div>
                   )}
@@ -152,24 +176,17 @@ export default function ScanPage() {
             )}
 
             <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-              {scanning ? (
-                <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay playsInline />
-              ) : (
+              <div id={scannerContainerId} className="absolute inset-0" />
+              {!scanning && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
                   <p className="text-gray-500">Camera preview will appear here</p>
-                </div>
-              )}
-
-              {scanning && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-64 h-64 border-2 border-green-500 rounded-lg"></div>
                 </div>
               )}
             </div>
           </CardContent>
           <CardFooter className="flex justify-between">
             {!scanning ? (
-              <Button onClick={startScanning} disabled={scanning} className="bg-green-600 hover:bg-green-700">
+              <Button onClick={startScanning} className="bg-green-600 hover:bg-green-700">
                 Start Scanning
               </Button>
             ) : (
