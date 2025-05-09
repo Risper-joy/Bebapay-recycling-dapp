@@ -10,13 +10,16 @@ import { RecycleIcon, Coins, ArrowDownToLine, CheckCircle2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MobileMenu } from "@/components/mobile-menu"
+import { useWallet } from "@/lib/wallet-context"
 
 export default function RewardsPage() {
   const [convertAmount, setConvertAmount] = useState("")
   const [converted, setConverted] = useState(false)
   const [phoneNumber, setPhoneNumber] = useState("")
+  const [showWalletInfo, setShowWalletInfo] = useState(true)
 
-  // Placeholder transaction history (values omitted)
+  const { account, balance, chainId } = useWallet()
+
   const transactions = [
     { id: 1, date: "-", type: "-", amount: null, item: "-" },
     { id: 2, date: "-", type: "-", amount: null, item: "-" },
@@ -51,20 +54,19 @@ export default function RewardsPage() {
           <Link href="/reward" className="text-sm font-medium hover:underline underline-offset-4">
             Rewards
           </Link>
-          <Link href="/reward">
-                <Button className="bg-blue-600 hover:bg-green-700 text-white">Connect Wallet</Button>
-              </Link>
         </nav>
         <div className="ml-auto md:hidden">
           <MobileMenu />
         </div>
       </header>
+
       <main className="flex-1 container max-w-4xl mx-auto py-12 px-4">
         <div className="grid gap-6">
           <div className="flex flex-col md:flex-row gap-6">
+            {/* Balance Card */}
             <Card className="flex-1">
               <CardHeader>
-                <CardTitle className="text-black" >Your Balance</CardTitle>
+                <CardTitle className="text-black">Your Balance</CardTitle>
                 <CardDescription className="text-black">Current Cypherium rewards balance</CardDescription>
               </CardHeader>
               <CardContent>
@@ -73,6 +75,24 @@ export default function RewardsPage() {
                   <span className="text-4xl font-bold">--</span>
                   <span className="text-gray-500">CYP</span>
                 </div>
+                <Button
+  variant="outline"
+  size="sm"
+  className="mt-4"
+  onClick={() => setShowWalletInfo(!showWalletInfo)}
+>
+  {showWalletInfo ? "Hide Wallet Info" : "Show Wallet Info"}
+</Button>
+
+                {/* ✅ Wallet Info */}
+                {account && showWalletInfo && (
+  <div className="mt-4 space-y-1 text-sm text-gray-600">
+    <p><strong>Wallet:</strong> {account.slice(0, 6)}...{account.slice(-4)}</p>
+    <p><strong>ETH Balance:</strong> {balance} ETH</p>
+    <p><strong>Network:</strong> {chainId}</p>
+  </div>
+)}
+
               </CardContent>
               <CardFooter>
                 <Link href="/scan">
@@ -81,6 +101,7 @@ export default function RewardsPage() {
               </CardFooter>
             </Card>
 
+            {/* Convert to M-Pesa */}
             <Card className="flex-1">
               <CardHeader>
                 <CardTitle>Convert to M-Pesa</CardTitle>
@@ -132,6 +153,7 @@ export default function RewardsPage() {
             </Card>
           </div>
 
+          {/* Transaction History */}
           <Card>
             <CardHeader>
               <CardTitle>Transaction History</CardTitle>
@@ -176,6 +198,7 @@ export default function RewardsPage() {
           </Card>
         </div>
       </main>
+
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full border-t px-4 md:px-6">
         <p className="text-xs text-gray-500">© 2025 Beba Pay. All rights reserved.</p>
       </footer>

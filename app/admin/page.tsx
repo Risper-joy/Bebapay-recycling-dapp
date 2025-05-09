@@ -37,6 +37,7 @@ interface BarcodeData {
   weight: number | null
   reward: number
   status: string
+  wallet_address: string
 }
 
 export default function AdminPage() {
@@ -178,6 +179,7 @@ export default function AdminPage() {
                     <TableHead onClick={() => handleSort("weight")} className="text-black">Weight <ArrowUpDown className="h-4 w-4 inline" /></TableHead>
                     <TableHead onClick={() => handleSort("reward")} className="text-black">Reward <ArrowUpDown className="h-4 w-4 inline" /></TableHead>
                     <TableHead onClick={() => handleSort("status")} className="text-black">Status <ArrowUpDown className="h-4 w-4 inline" /></TableHead>
+                    <TableHead className="text-black">Wallet Address</TableHead>
                     <TableHead className="text-right text-black">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -190,6 +192,7 @@ export default function AdminPage() {
                       <TableCell className="text-black">{barcode.weight}</TableCell>
                       <TableCell className="text-black">{barcode.reward}</TableCell>
                       <TableCell className="text-black">{getStatusBadge(barcode.status)}</TableCell>
+                      <TableCell className="text-black">{barcode.wallet_address}</TableCell>
                       <TableCell className="text-right">
                         <Dialog>
                           <DialogTrigger asChild>

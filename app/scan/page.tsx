@@ -10,6 +10,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { useMobile } from "@/hooks/use-mobile"
 import { Layout } from "@/components/layout"
 import { supabase } from "@/lib/supabase"
+import { useWallet } from "@/lib/wallet-context"
 
 export default function ScanPage() {
   const [scanning, setScanning] = useState(false)
@@ -21,6 +22,7 @@ export default function ScanPage() {
   const isMobile = useMobile()
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const scannerContainerId = "html5-qrcode"
+  const { account } = useWallet()
 
   const stopScanning = async () => {
     if (scannerRef.current) {
@@ -40,16 +42,18 @@ export default function ScanPage() {
   }
 
   const saveToSupabase = async (code: string, format: string, reward: number) => {
-    const { data, error } = await supabase.from("barcodes").insert([
+    const { error } = await supabase.from("barcodes").insert([
       {
+        wallet_address: account || "unknown",
         code,
         format,
         reward,
-        status: 'pending',
+        status: "pending",
       },
     ])
     if (error) console.error("Supabase insert error:", error)
   }
+
   const startScanning = async () => {
     setScanning(true)
     setScanned(false)
@@ -63,7 +67,7 @@ export default function ScanPage() {
         Html5QrcodeSupportedFormats.CODE_128,
         Html5QrcodeSupportedFormats.CODE_39,
         Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.UPC_A
+        Html5QrcodeSupportedFormats.UPC_A,
       ]
 
       const config = {
@@ -71,7 +75,7 @@ export default function ScanPage() {
         qrbox: { width: 250, height: 250 },
         formatsToSupport,
         aspectRatio: 1.777,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
       }
 
       scannerRef.current = new Html5Qrcode(scannerContainerId)
@@ -79,7 +83,7 @@ export default function ScanPage() {
       if (!devices.length) throw new Error("No camera found")
 
       const backCamera = isMobile
-        ? devices.find(d => d.label.toLowerCase().includes("back"))?.id || devices[0].id
+        ? devices.find((d) => d.label.toLowerCase().includes("back"))?.id || devices[0].id
         : devices[0].id
 
       await scannerRef.current.start(
@@ -90,17 +94,13 @@ export default function ScanPage() {
           setScanning(false)
           setBarcodeResult(decodedText)
 
-          // Safely access format name
-          setBarcodeFormat(decodedResult?.result?.format?.formatName || "Unknown Format")
+          const format = decodedResult?.result?.format?.formatName || "Unknown Format"
+          setBarcodeFormat(format)
 
           const randomReward = Math.floor(Math.random() * 16) + 5
           setReward(randomReward)
 
-          const format = decodedResult?.result?.format?.formatName || "Unknown Format"
-
-                   // ✅ Call it here
-             saveToSupabase(decodedText, format, randomReward)
-
+          saveToSupabase(decodedText, format, randomReward)
           stopScanning()
         },
         (errorMessage) => {
@@ -132,7 +132,7 @@ export default function ScanPage() {
         }
       }
 
-      cleanup().catch(err => console.error("Cleanup error:", err))
+      cleanup().catch((err) => console.error("Cleanup error:", err))
     }
   }, [])
 
@@ -158,9 +158,8 @@ export default function ScanPage() {
             {scanned && (
               <Alert className="bg-green-50 border-green-200">
                 <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertTitle  className="text-black">Success!</AlertTitle>
+                <AlertTitle className="text-black">Success!</AlertTitle>
                 <AlertDescription className="text-black">
-                
                   {barcodeResult && (
                     <div className="mt-2 text-sm">
                       <p>
