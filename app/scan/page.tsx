@@ -193,7 +193,7 @@ export default function ScanPage() {
                 Stop Scanning
               </Button>
             )}
-            <Link href="/rewards">
+            <Link href="/reward">
               <Button variant="outline">View Rewards</Button>
             </Link>
           </CardFooter>
